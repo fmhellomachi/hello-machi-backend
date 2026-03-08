@@ -21,12 +21,15 @@ const CONFIG_PATH = path.join(__dirname, 'config.json');
 // --- CHAT SYSTEM ---
 let chatHistory = [];
 const MAX_HISTORY = 50;
+let onlineUsers = 0; // Track connected clients
 
 io.on('connection', (socket) => {
-    console.log('User connected to chat');
+    onlineUsers++;
+    console.log(`User connected. Online: ${onlineUsers}`);
 
-    // Send history to new user
+    // Send history + current user count to new user
     socket.emit('chat_history', chatHistory);
+    io.emit('user_count', onlineUsers); // Broadcast count to everyone
 
     // Handle new message
     socket.on('send_message', (data) => {
@@ -48,14 +51,17 @@ io.on('connection', (socket) => {
     // Admin: Clear entire chat history
     socket.on('clear_chat', (data) => {
         console.log(`[Admin] Chat cleared by: ${data.adminUser || 'Unknown'}`);
-        chatHistory.length = 0; // Purely purge the existing array
+        chatHistory.length = 0;
         io.emit('chat_cleared', { adminUser: data.adminUser || 'Admin' });
     });
 
     socket.on('disconnect', () => {
-        console.log('User disconnected');
+        onlineUsers = Math.max(0, onlineUsers - 1);
+        console.log(`User disconnected. Online: ${onlineUsers}`);
+        io.emit('user_count', onlineUsers); // Broadcast updated count
     });
 });
+
 
 // Enable CORS so the web preview can talk to the server
 app.use(cors());
