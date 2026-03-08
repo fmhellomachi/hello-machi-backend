@@ -1,0 +1,51 @@
+{
+    "stream_url": "https://sonic-ca.instainternet.com/8022/stream",
+    "whatsapp_number": "+91 9092363433",
+    "whatsapp_message": "Hello Machi FM! 🎵",
+    "facebook_url": "https://www.facebook.com/hellomachifm",
+    "instagram_url": "https://www.instagram.com/hellomachifm",
+    "youtube_url": "https://www.youtube.com/@hellomachifm",
+    "custom_link": "https://hello-machi.github.io/hello-machi-portal/",
+    "logo_url": "https://hello-machi.github.io/hello-machi-portal/logo.jpg",
+    "welcome_title": "HELLO MACHI FM",
+    "welcome_greeting": "WELCOME TO",
+    "status_message": "Synced via Cloud Panel",
+    "programs": [
+        {
+            "time": "06:00",
+            "endTime": "09:00",
+            "title": "Morning Vibes",
+            "rj": "RJ Malar"
+        },
+        {
+            "time": "09:00",
+            "endTime": "12:00",
+            "title": "Retro Hits",
+            "rj": "RJ Uthiran"
+        },
+        {
+            "time": "12:00",
+            "endTime": "16:00",
+            "title": "Midday Melodies",
+            "rj": "RJ Malar"
+        },
+        {
+            "time": "16:00",
+            "endTime": "20:00",
+            "title": "Evening Express",
+            "rj": "RJ Vijay"
+        },
+        {
+            "time": "20:00",
+            "endTime": "23:59",
+            "title": "Romantic Night",
+            "rj": "RJ Uthiran"
+        },
+        {
+            "time": "00:00",
+            "endTime": "06:00",
+            "title": "Iravin Madiyil",
+            "rj": "RJ Vijay"
+        }
+    ]
+}
