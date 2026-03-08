@@ -21,15 +21,21 @@ const CONFIG_PATH = path.join(__dirname, 'config.json');
 // --- CHAT SYSTEM ---
 let chatHistory = [];
 const MAX_HISTORY = 50;
-let onlineUsers = 0; // Track connected clients
+
+function broadcastUserCount() {
+    const count = io.engine.clientsCount;
+    io.emit('user_count', count);
+    console.log(`Current users online: ${count}`);
+}
 
 io.on('connection', (socket) => {
-    onlineUsers++;
-    console.log(`User connected. Online: ${onlineUsers}`);
+    console.log(`User connected. SID: ${socket.id}`);
 
-    // Send history + current user count to new user
+    // Send history to new user
     socket.emit('chat_history', chatHistory);
-    io.emit('user_count', onlineUsers); // Broadcast count to everyone
+    
+    // Broadcast updated count to everyone
+    broadcastUserCount();
 
     // Handle new message
     socket.on('send_message', (data) => {
@@ -56,9 +62,8 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
-        onlineUsers = Math.max(0, onlineUsers - 1);
-        console.log(`User disconnected. Online: ${onlineUsers}`);
-        io.emit('user_count', onlineUsers); // Broadcast updated count
+        console.log(`User disconnected. SID: ${socket.id}`);
+        broadcastUserCount();
     });
 });
 
