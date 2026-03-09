@@ -9,6 +9,7 @@
     "logo_url": "https://hello-machi.github.io/hello-machi-portal/logo.jpg",
     "welcome_title": "HELLO MACHI FM",
     "welcome_greeting": "WELCOME TO",
+    "fallback_timeout": 10,
     "status_message": "Synced via Cloud Panel",
     "programs": [
         {
