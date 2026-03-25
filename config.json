@@ -1,5 +1,8 @@
 {
     "stream_url": "https://sonic-ca.instainternet.com/8022/stream",
+    "latest_version_code": 2,
+    "apk_url": "https://github.com/fmhellomachi/hello-machi-backend/releases/download/v1.1/hellomachi.apk",
+    "update_message": "New update available! Tap to download the latest Hello Machi FM.",
     "whatsapp_number": "+91 9092363433",
     "whatsapp_message": "Hello Machi FM! 🎵",
     "facebook_url": "https://www.facebook.com/hellomachifm",
@@ -7,9 +10,10 @@
     "youtube_url": "https://www.youtube.com/@hellomachifm",
     "custom_link": "https://hello-machi.github.io/hello-machi-portal/",
     "logo_url": "https://hello-machi.github.io/hello-machi-portal/logo.jpg",
+    "accent_color": "#D4AF37",
+    "request_song_message": "I'd like to request a song 🎵",
     "welcome_title": "HELLO MACHI FM",
     "welcome_greeting": "WELCOME TO",
-    "fallback_timeout": 25,
     "status_message": "Synced via Cloud Panel",
     "programs": [
         {
