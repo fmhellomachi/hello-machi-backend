@@ -3,7 +3,6 @@
     "latest_version_code": 16,
     "apk_url": "https://github.com/fmhellomachi/hello-machi-backend/releases/download/V3/app-universal-release.apk",
     "update_message": "New update available! Tap to download the latest Hello Machi FM.",
-    "update_message": "🚨 CRITICAL UPDATE: Our update system has been upgraded! Your current app cannot install this update automatically. \n\nPlease MANUALLY download the fix here: \nhttps://github.com/fmhellomachi/hello-machi-backend/releases/download/V2/app-universal-release.apk \n\n(After this one manual step, all future updates will be automatic again!)",
     "whatsapp_number": "+91 9092363433",
     "whatsapp_message": "Hello Machi FM! 🎵",
     "facebook_url": "https://www.facebook.com/hellomachifm",
