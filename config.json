@@ -1,7 +1,7 @@
 {
     "stream_url": "https://sonic-ca.instainternet.com/8022/stream",
-    "latest_version_code": 2,
-    "apk_url": "https://github.com/fmhellomachi/hello-machi-backend/releases/download/v1.1/hellomachi.apk",
+    "latest_version_code": 3,
+    "apk_url": "https://github.com/fmhellomachi/hello-machi-backend/releases/download/V2/app-universal-release.apk",
     "update_message": "New update available! Tap to download the latest Hello Machi FM.",
     "whatsapp_number": "+91 9092363433",
     "whatsapp_message": "Hello Machi FM! 🎵",
