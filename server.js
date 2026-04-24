@@ -27,65 +27,52 @@ if (process.env.FIREBASE_SERVICE_ACCOUNT) {
     } catch (err) {
         console.error("Firebase Init Error:", err);
     }
-} else {
-    console.error("CRITICAL: FIREBASE_SERVICE_ACCOUNT not found! Persistence is disabled.");
 }
 
-// --- CHAT SYSTEM ---
+// --- LIVE CHAT SYSTEM ---
 let chatHistory = [];
 const MAX_HISTORY = 50;
 
-async function loadHistoryFromDB() {
-    if (!db) return; // Skip if no database
-    try {
-        const snapshot = await db.collection('chats').orderBy('timestamp', 'asc').limitToLast(MAX_HISTORY).get();
-        chatHistory = snapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                user: data.user,
-                text: data.text,
-                time: data.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            };
-        });
-        console.log(`Loaded ${chatHistory.length} messages from Firestore.`);
-    } catch (err) {
-        console.error("Error loading chat history:", err);
-    }
-}
-loadHistoryFromDB();
-
-function broadcastUserCount() {
-    const count = io.engine.clientsCount;
-    io.emit('user_count', count);
+// Listen to Firestore in Real-Time
+if (db) {
+    db.collection('chats').orderBy('timestamp', 'asc').limitToLast(MAX_HISTORY)
+      .onSnapshot(snapshot => {
+          chatHistory = snapshot.docs.map(doc => {
+              const data = doc.data();
+              return {
+                  id: doc.id,
+                  user: data.user,
+                  text: data.text,
+                  time: data.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              };
+          });
+          // Broadcast the updated history to everyone whenever the DB changes
+          io.emit('chat_history', chatHistory);
+          console.log("Chat history updated from Database.");
+      }, err => {
+          console.error("Firestore Listen Error:", err);
+      });
 }
 
 io.on('connection', (socket) => {
     socket.emit('chat_history', chatHistory);
-    broadcastUserCount();
-
+    
     socket.on('send_message', async (data) => {
         const chatMsg = {
             user: data.user || 'Anonymous',
             text: data.text,
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            timestamp: admin.firestore.FieldValue ? admin.firestore.FieldValue.serverTimestamp() : new Date()
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
         };
 
-        // 1. Save to Firestore (Only if DB is connected)
         if (db) {
             try {
-                const docRef = await db.collection('chats').add(chatMsg);
-                chatMsg.id = docRef.id;
+                await db.collection('chats').add(chatMsg);
+                // Note: We don't need to emit 'new_message' here anymore 
+                // because the .onSnapshot above will catch it and update everyone!
             } catch (err) { console.error("Error saving to DB:", err); }
         }
-
-        chatHistory.push(chatMsg);
-        if (chatHistory.length > MAX_HISTORY) chatHistory.shift();
-        io.emit('new_message', chatMsg);
     });
-
-    socket.on('disconnect', () => broadcastUserCount());
 });
 
 app.use(cors());
