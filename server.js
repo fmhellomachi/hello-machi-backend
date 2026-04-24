@@ -16,26 +16,27 @@ const PORT = process.env.PORT || 3000;
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 
 // --- FIREBASE INITIALIZATION ---
+let db = null;
 if (process.env.FIREBASE_SERVICE_ACCOUNT) {
     try {
         admin.initializeApp({
             credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT))
         });
+        db = admin.firestore();
         console.log("Firebase Admin Initialized ✓");
     } catch (err) {
         console.error("Firebase Init Error:", err);
     }
 } else {
-    console.error("WARNING: FIREBASE_SERVICE_ACCOUNT not found in environment variables!");
+    console.error("CRITICAL: FIREBASE_SERVICE_ACCOUNT not found! Persistence is disabled.");
 }
-const db = admin.firestore();
 
 // --- CHAT SYSTEM ---
 let chatHistory = [];
 const MAX_HISTORY = 50;
 
-// Load History from Firestore on startup
 async function loadHistoryFromDB() {
+    if (!db) return; // Skip if no database
     try {
         const snapshot = await db.collection('chats').orderBy('timestamp', 'asc').limitToLast(MAX_HISTORY).get();
         chatHistory = snapshot.docs.map(doc => {
@@ -60,30 +61,27 @@ function broadcastUserCount() {
 }
 
 io.on('connection', (socket) => {
-    // Send history to new user (Android App + Website)
     socket.emit('chat_history', chatHistory);
     broadcastUserCount();
 
-    // Handle new message
     socket.on('send_message', async (data) => {
         const chatMsg = {
             user: data.user || 'Anonymous',
             text: data.text,
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            timestamp: admin.firestore.FieldValue.serverTimestamp()
+            timestamp: admin.firestore.FieldValue ? admin.firestore.FieldValue.serverTimestamp() : new Date()
         };
 
-        // 1. Save to Firestore (Permanent)
-        try {
-            const docRef = await db.collection('chats').add(chatMsg);
-            chatMsg.id = docRef.id;
-        } catch (err) { console.error("Error saving to DB:", err); }
+        // 1. Save to Firestore (Only if DB is connected)
+        if (db) {
+            try {
+                const docRef = await db.collection('chats').add(chatMsg);
+                chatMsg.id = docRef.id;
+            } catch (err) { console.error("Error saving to DB:", err); }
+        }
 
-        // 2. Update Local History
         chatHistory.push(chatMsg);
         if (chatHistory.length > MAX_HISTORY) chatHistory.shift();
-
-        // 3. Broadcast to everyone
         io.emit('new_message', chatMsg);
     });
 
@@ -96,7 +94,7 @@ app.use(express.static(__dirname));
 
 app.get('/config', (req, res) => {
     fs.readFile(CONFIG_PATH, 'utf8', (err, data) => {
-        if (err) return res.status(500).json({ error: "Failed to read configuration" });
+        if (err) return res.status(500).json({ error: "Failed to read config" });
         res.json(JSON.parse(data));
     });
 });
