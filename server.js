@@ -55,6 +55,8 @@ if (db) {
 }
 
 io.on('connection', (socket) => {
+    // 1. Broadcast the new user count to all clients when someone connects
+    io.emit('user_count', io.engine.clientsCount);
     socket.emit('chat_history', chatHistory);
     
     socket.on('send_message', async (data) => {
@@ -64,14 +66,15 @@ io.on('connection', (socket) => {
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         };
-
         if (db) {
             try {
                 await db.collection('chats').add(chatMsg);
-                // Note: We don't need to emit 'new_message' here anymore 
-                // because the .onSnapshot above will catch it and update everyone!
             } catch (err) { console.error("Error saving to DB:", err); }
         }
+    });
+    // 2. Broadcast the updated user count when someone disconnects
+    socket.on('disconnect', () => {
+        io.emit('user_count', io.engine.clientsCount);
     });
 });
 
