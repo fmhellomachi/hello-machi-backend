@@ -8,7 +8,7 @@
     "facebook_url": "https://www.facebook.com/hellomachifm",
     "instagram_url": "https://www.instagram.com/hellomachifm",
     "youtube_url": "https://www.youtube.com/@hellomachifm",
-    "custom_link": "https://hello-machi.github.io/hello-machi-portal/",
+    "custom_link": "https://hellomachifm.vercel.app/api/config",
     "logo_url": "https://hello-machi.github.io/hello-machi-portal/logo.jpg",
     "accent_color": "#D4AF37",
     "request_song_message": "I'd like to request a song 🎵",
