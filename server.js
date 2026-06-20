@@ -43,15 +43,70 @@ function saveToFirestore(collection, data) {
     });
 }
 
+function fetchFromFirestore(collection) {
+    return new Promise((resolve, reject) => {
+        const query = JSON.stringify({
+            structuredQuery: {
+                from: [{ collectionId: collection }],
+                orderBy: [{ field: { fieldPath: 'timestamp' }, direction: 'DESCENDING' }],
+                limit: MAX_HISTORY
+            }
+        });
+        const u = new URL(`${FIRESTORE_API}:runQuery?key=${FIREBASE_KEY}`);
+        const options = {
+            hostname: u.hostname,
+            path: u.pathname + u.search,
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(query) },
+            timeout: 8000
+        };
+        const req = https.request(options, (resp) => {
+            let body = '';
+            resp.on('data', chunk => body += chunk);
+            resp.on('end', () => {
+                try { resolve(JSON.parse(body)); }
+                catch { resolve([]); }
+            });
+        });
+        req.on('error', () => resolve([]));
+        req.write(query);
+        req.end();
+    });
+}
+
 // --- CHAT SYSTEM ---
 let chatHistory = [];
 const MAX_HISTORY = 50;
+
+function loadChatHistory() {
+    fetchFromFirestore('chats').then(results => {
+        if (!Array.isArray(results)) return;
+        const msgs = [];
+        for (const doc of results) {
+            const f = doc.document?.fields;
+            if (!f || !f.text || !f.username) continue;
+            msgs.push({
+                id: parseInt(f.timestamp?.integerValue || f.timestamp?.timestampValue || Date.now()),
+                user: f.username.stringValue || 'Anonymous',
+                text: f.text.stringValue || '',
+                time: f.timestamp?.integerValue
+                    ? new Date(parseInt(f.timestamp.integerValue)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            });
+        }
+        chatHistory = msgs.reverse().slice(-MAX_HISTORY);
+        console.log(`[Chat] Loaded ${chatHistory.length} messages from Firestore`);
+    }).catch(err => console.error('[Chat] Failed to load history:', err.message));
+}
 
 function broadcastUserCount() {
     const count = io.engine.clientsCount;
     io.emit('user_count', count);
     console.log(`Current users online: ${count}`);
 }
+
+// Load history on startup
+loadChatHistory();
 
 io.on('connection', (socket) => {
     console.log(`User connected. SID: ${socket.id}`);
