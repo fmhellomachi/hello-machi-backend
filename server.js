@@ -2,201 +2,102 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const cors = require('cors');
-const https = require('https');
-
 const http = require('http');
 const socketIo = require('socket.io');
+const admin = require('firebase-admin');
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
-    cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
-    }
+    cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
 const PORT = process.env.PORT || 3000;
 const CONFIG_PATH = path.join(__dirname, 'config.json');
-const FIRESTORE_API = 'https://firestore.googleapis.com/v1/projects/hello-machi-fm-6ebe4/databases/(default)/documents';
-const FIREBASE_KEY = 'AIzaSyDcU-Gh0FjHeRHVy5A4ezE9H3-94u6aIb4';
 
-function saveToFirestore(collection, data) {
-    return new Promise((resolve, reject) => {
-        const payload = JSON.stringify({ fields: data });
-        const u = new URL(`${FIRESTORE_API}/${collection}?key=${FIREBASE_KEY}`);
-        const options = {
-            hostname: u.hostname,
-            path: u.pathname + u.search,
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
-            timeout: 5000
-        };
-        const req = https.request(options, (resp) => {
-            let body = '';
-            resp.on('data', chunk => body += chunk);
-            resp.on('end', () => resolve({ code: resp.statusCode, body }));
+// --- FIREBASE INITIALIZATION ---
+let db = null;
+if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    try {
+        admin.initializeApp({
+            credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT))
         });
-        req.on('error', reject);
-        req.write(payload);
-        req.end();
-    });
+        db = admin.firestore();
+        console.log("Firebase Admin Initialized ✓");
+    } catch (err) {
+        console.error("Firebase Init Error:", err);
+    }
 }
 
-function fetchFromFirestore(collection) {
-    return new Promise((resolve, reject) => {
-        const query = JSON.stringify({
-            structuredQuery: {
-                from: [{ collectionId: collection }],
-                orderBy: [{ field: { fieldPath: 'timestamp' }, direction: 'DESCENDING' }],
-                limit: MAX_HISTORY
-            }
-        });
-        const u = new URL(`${FIRESTORE_API}:runQuery?key=${FIREBASE_KEY}`);
-        const options = {
-            hostname: u.hostname,
-            path: u.pathname + u.search,
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(query) },
-            timeout: 8000
-        };
-        const req = https.request(options, (resp) => {
-            let body = '';
-            resp.on('data', chunk => body += chunk);
-            resp.on('end', () => {
-                try { resolve(JSON.parse(body)); }
-                catch { resolve([]); }
-            });
-        });
-        req.on('error', () => resolve([]));
-        req.write(query);
-        req.end();
-    });
-}
-
-// --- CHAT SYSTEM ---
+// --- LIVE CHAT SYSTEM ---
 let chatHistory = [];
 const MAX_HISTORY = 50;
 
-function loadChatHistory() {
-    fetchFromFirestore('chats').then(results => {
-        if (!Array.isArray(results)) return;
-        const msgs = [];
-        for (const doc of results) {
-            const f = doc.document?.fields;
-            if (!f || !f.text || !f.username) continue;
-            msgs.push({
-                id: parseInt(f.timestamp?.integerValue || f.timestamp?.timestampValue || Date.now()),
-                user: f.username.stringValue || 'Anonymous',
-                text: f.text.stringValue || '',
-                time: f.timestamp?.integerValue
-                    ? new Date(parseInt(f.timestamp.integerValue)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                    : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            });
-        }
-        chatHistory = msgs.reverse().slice(-MAX_HISTORY);
-        console.log(`[Chat] Loaded ${chatHistory.length} messages from Firestore`);
-    }).catch(err => console.error('[Chat] Failed to load history:', err.message));
+// Listen to Firestore in Real-Time
+if (db) {
+    db.collection('chats').orderBy('timestamp', 'asc').limitToLast(MAX_HISTORY)
+      .onSnapshot(snapshot => {
+          chatHistory = snapshot.docs.map(doc => {
+              const data = doc.data();
+              return {
+                  id: doc.id,
+                  user: data.user,
+                  text: data.text,
+                  time: data.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              };
+          });
+          // Broadcast the updated history to everyone whenever the DB changes
+          io.emit('chat_history', chatHistory);
+          console.log("Chat history updated from Database.");
+      }, err => {
+          console.error("Firestore Listen Error:", err);
+      });
 }
-
-function broadcastUserCount() {
-    const count = io.engine.clientsCount;
-    io.emit('user_count', count);
-    console.log(`Current users online: ${count}`);
-}
-
-// Load history on startup
-loadChatHistory();
 
 io.on('connection', (socket) => {
-    console.log(`User connected. SID: ${socket.id}`);
-
-    // Send history to new user
+    // 1. Broadcast the new user count to all clients when someone connects
+    io.emit('user_count', io.engine.clientsCount);
     socket.emit('chat_history', chatHistory);
     
-    // Broadcast updated count to everyone
-    broadcastUserCount();
-
-    // Handle new message
-    socket.on('send_message', (data) => {
-        const now = Date.now();
-        const msg = {
-            id: now,
+    socket.on('send_message', async (data) => {
+        const chatMsg = {
             user: data.user || 'Anonymous',
             text: data.text,
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
         };
-
-        console.log(`[Chat] Message from ${data.user}: ${data.text}`);
-        chatHistory.push(msg);
-        if (chatHistory.length > MAX_HISTORY) chatHistory.shift();
-
-        // Broadcast to everyone
-        io.emit('new_message', msg);
-
-        // Persist to Firebase Firestore (non-blocking)
-        saveToFirestore('chats', {
-            username:    { stringValue: msg.user },
-            text:        { stringValue: msg.text },
-            timestamp:   { integerValue: now },
-            source:      { stringValue: 'server' }
-        }).catch(err => console.error('Firestore save failed:', err.message));
+        if (db) {
+            try {
+                await db.collection('chats').add(chatMsg);
+            } catch (err) { console.error("Error saving to DB:", err); }
+        }
     });
-
-    // Admin: Clear entire chat history
-    socket.on('clear_chat', (data) => {
-        console.log(`[Admin] Chat cleared by: ${data.adminUser || 'Unknown'}`);
-        chatHistory.length = 0;
-        io.emit('chat_cleared', { adminUser: data.adminUser || 'Admin' });
-    });
-
+    // 2. Broadcast the updated user count when someone disconnects
     socket.on('disconnect', () => {
-        console.log(`User disconnected. SID: ${socket.id}`);
-        broadcastUserCount();
+        io.emit('user_count', io.engine.clientsCount);
     });
 });
 
-
-// Enable CORS so the web preview can talk to the server
 app.use(cors());
 app.use(express.json());
-
-// Serve static files from the project directory (optional, but helpful for hosting)
 app.use(express.static(__dirname));
 
-// GET config: Read the config.json file and return it
 app.get('/config', (req, res) => {
     fs.readFile(CONFIG_PATH, 'utf8', (err, data) => {
-        if (err) {
-            console.error("Error reading config:", err);
-            return res.status(500).json({ error: "Failed to read configuration" });
-        }
+        if (err) return res.status(500).json({ error: "Failed to read config" });
         res.json(JSON.parse(data));
     });
 });
 
-// POST config: Update the config.json file
 app.post('/config', (req, res) => {
     const newConfig = req.body;
-
-    // Basic validation
-    if (!newConfig || !newConfig.programs) {
-        return res.status(400).json({ error: "Invalid configuration data" });
-    }
-
+    if (!newConfig || !newConfig.programs) return res.status(400).json({ error: "Invalid data" });
     fs.writeFile(CONFIG_PATH, JSON.stringify(newConfig, null, 4), 'utf8', (err) => {
-        if (err) {
-            console.error("Error writing config:", err);
-            return res.status(500).json({ error: "Failed to save configuration" });
-        }
-        console.log("Config updated successfully via API");
-        res.json({ success: true, message: "Configuration saved to config.json" });
+        if (err) return res.status(500).json({ error: "Failed to save" });
+        res.json({ success: true });
     });
 });
 
-const VERSION = "March 2026 Stable (2026-03-08)";
 server.listen(PORT, () => {
-    console.log(`Hello Machi FM Backend - ${VERSION}`);
-    console.log(`Running at http://localhost:${PORT}`);
-    console.log(`Live Audio & Chat Sync Ready! ✓`);
+    console.log(`Hello Machi FM Backend running on port ${PORT}`);
 });
