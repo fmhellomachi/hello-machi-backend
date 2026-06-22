@@ -61,7 +61,7 @@ if (db) {
                 id: doc.id,
                 user: data.user,
                 text: data.text,
-                // CHANGED: Formats to both Date and Time (e.g., "Oct 24, 2026, 08:30 PM")
+                timestamp: data.timestamp ? data.timestamp.toMillis() : Date.now(),
                 time: data.time || formatDateTime(messageDate)
             };
         });
@@ -83,8 +83,6 @@ io.on('connection', (socket) => {
         const chatMsg = {
             user: data.user || 'Anonymous',
             text: data.text,
-            // CHANGED: Saves the initial layout with both Date and Time
-            time: formatDateTime(new Date()),
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         };
 
