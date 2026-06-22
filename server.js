@@ -61,8 +61,7 @@ if (db) {
                 id: doc.id,
                 user: data.user,
                 text: data.text,
-                timestamp: data.timestamp ? data.timestamp.toMillis() : Date.now(),
-                time: data.time || formatDateTime(messageDate)
+                timestamp: data.timestamp ? data.timestamp.toMillis() : Date.now()
             };
         });
 
